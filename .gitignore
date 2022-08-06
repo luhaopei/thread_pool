@@ -30,3 +30,10 @@
 *.exe
 *.out
 *.app
+/.vs/threadpool/v17/.suo
+/.vs/threadpool/v17/Browse.VC.db
+/.vs/threadpool/v17/ipch/AutoPCH/5de11127155c637b/THREAD_POOL.ipch
+/.vs/threadpool/v17/ipch/AutoPCH/935a6235b2c4eee8/MAIN.ipch
+/x64/Debug/threadpool.exe.recipe
+/x64/Debug/threadpool.log
+/x64/Debug/threadpool.tlog/threadpool.lastbuildstate
