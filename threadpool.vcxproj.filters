@@ -24,6 +24,18 @@
     <ClInclude Include="function_wrapper.h">
       <Filter>源文件</Filter>
     </ClInclude>
+    <ClInclude Include="accumulate_block.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
+    <ClInclude Include="work_stealing_queue.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
+    <ClInclude Include="join_threads.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
+    <ClInclude Include="interruptible_thread.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

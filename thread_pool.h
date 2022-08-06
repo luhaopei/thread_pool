@@ -8,59 +8,116 @@
 
 #include "thread_safe_queue.h"
 #include "function_wrapper.h"
-
+#include "accumulate_block.h"
+#include "work_stealing_queue.h"
+#include "join_threads.h"
 
 class thread_pool
 {
-    std::deque<function_wrapper> work_queue;  // ①使用 function_wrapper 而非 std::function
-    
+    std::atomic_bool done;
+    typedef function_wrapper task_type;
+    thread_safe_queue<function_wrapper> pool_work_queue; 
+    typedef std::queue<function_wrapper> local_queue_type;
+    std::vector<std::unique_ptr<work_stealing_queue> > queues;
+    std::vector<std::thread> threads;
+    join_threads joiner;
+
+    static thread_local work_stealing_queue* local_work_queue;
+    static thread_local unsigned my_index_;
+
+    void worker_thread(unsigned my_index)
+    {
+        my_index_ = my_index;
+        local_work_queue = queues[my_index_].get();
+        while (!done)
+        {
+            run_pending_task();
+        }
+    }
+
+    bool pop_task_from_local_queue(task_type& task)
+    {
+        return local_work_queue && local_work_queue->try_pop(task);
+    }
+
+    bool pop_task_from_pool_queue(task_type& task)
+    {
+        return pool_work_queue.try_pop(task);
+    }
+
+    bool pop_task_from_other_thread_queue(task_type& task)
+    {
+        for (unsigned i = 0; i < queues.size(); ++i)
+        {
+            unsigned const index = (my_index_ + i + 1) % queues.size();
+            if (queues[index]->try_steal(task))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+public:
+    thread_pool() :
+        joiner(threads), done(false)
+    {
+        unsigned const thread_count = std::thread::hardware_concurrency();
+
+        try
+        {
+            for (unsigned i = 0; i < thread_count; ++i)
+            {
+                queues.push_back(std::unique_ptr<work_stealing_queue>(
+                    new work_stealing_queue));
+                threads.push_back(
+                    std::thread(&thread_pool::worker_thread, this, i));
+            }
+        }
+        catch (...)
+        {
+            done = true;
+            throw;
+        }
+    }
+
+    ~thread_pool()
+    {
+        done = true;
+    }
+
+
     template <typename FunctionType>
     std::future<typename std::result_of<FunctionType()>::type> // ② std::result_of<FunctionType>的实例即为函数 f()
         submit(FunctionType f)
     {
         typedef typename std::result_of<FunctionType()>::type result_type;// ③
 
-        std::packaged_task<result_type()> task(std::move(f)); // ④
+        std::packaged_task<result_type()> task(f); // ④
         std::future<result_type> res(task.get_future());  // ⑤
-        work_queue.push_back(std::move(task)); // ⑥
-        return res; // ⑦
+        if (local_work_queue)
+        {
+            local_work_queue->push(std::move(task));
+        }
+        else
+        {
+            pool_work_queue.push(std::move(task));
+        }
+        return res; 
     }
 
-    /*
-        我们需要把数据分成块，其体积是值得并发处理的最小尺寸，以便将线程池的可伸缩性利用到极致。当池中只有少量线程时，
-        每个线程都会处理许多数据块，但如果硬件线程的数目有所增加，并行处理的块的数目也会随之变大。
-    */
-
-    template<typename Iterator, typename T>
-    T parallel_accumulate(Iterator first, Iterator last, T init)
+    void run_pending_task()
     {
-        unsigned long const length = std::distance(first, last);
-
-        if (!length)
-            return init;
-
-        unsigned long const block_size = 25;
-        unsigned long const num_blocks = (length + block_size - 1) / block_size; // ①
-
-        std::vector<std::future<T> > futures(num_blocks - 1);
-        thread_pool pool;
-
-        Iterator block_start = first;
-        for (unsigned long i = 0; i < (num_threads - 1); ++i)
+        task_type task;
+        if (pop_task_from_local_queue(task) ||
+            pop_task_from_pool_queue(task) ||
+            pop_task_from_other_thread_queue(task))
         {
-            Iterator block_end = block_start;
-            std::advance(block_end, block_size);
-            futures[i] = pool.submit(accumulate_block<Iterator, T>()); // ②
-            block_start = block_end;
+            task();
         }
-        T last_result = accumulate_block()(block_start, last);
-        T result = init;
-        for (unsigned long i = 0; i < (num_blocks - 1); ++i)
+        else
         {
-            result += futures[i].get();
+            std::this_thread::yield();
         }
-        result += last_result;
-        return result;
     }
-
 };
