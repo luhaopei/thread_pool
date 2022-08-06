@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="function_wrapper.h" />
     <ClInclude Include="thread_pool.h" />
     <ClInclude Include="thread_safe_queue.h" />
   </ItemGroup>

@@ -21,6 +21,9 @@
     <ClInclude Include="thread_safe_queue.h">
       <Filter>源文件</Filter>
     </ClInclude>
+    <ClInclude Include="function_wrapper.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

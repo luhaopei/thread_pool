@@ -1,6 +1,7 @@
 #include "thread_pool.h"
 
-void main()
+int main()
 {
   //  thread_pool::submit<>()
+    return 0;
 }
